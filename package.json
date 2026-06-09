@@ -1,0 +1,29 @@
+{
+  "name": "memoir",
+  "version": "0.0.1",
+  "description": "Local long-term memory for your codebase — an embedded house memory, not a pile of .md files.",
+  "type": "module",
+  "bin": {
+    "memoir": "./src/cli.ts",
+    "memoir-mcp": "./src/mcp.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "memoir": "node src/cli.ts",
+    "test": "NODE_NO_WARNINGS=1 node --test"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}

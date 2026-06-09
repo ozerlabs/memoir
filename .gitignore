@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+
+# NOTE: .memoir/ is intentionally NOT ignored.
+# memoir dogfoods itself — its own design memory lives in .memoir/memory.db
+# and travels with this repo. That commit IS the demo of "memory beyond the session."
+# …but the SQLite WAL sidecars are transient — never commit those.
+*.db-wal
+*.db-shm
