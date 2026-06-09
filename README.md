@@ -15,7 +15,7 @@ The *why*, the *don't*, the *not-yet*, and the *how-we-like-it* — captured onc
 [![Runtime deps](https://img.shields.io/badge/runtime%20deps-0-22c55e?style=for-the-badge)](#how-its-built-the-honest-architecture)
 [![Offline](https://img.shields.io/badge/works-offline-10b981?style=for-the-badge)](#-it-works-on-a-plane-it-works-air-gapped-it-just-works)
 [![MCP](https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge)](#for-your-ai-agent-mcp)
-[![Tests](https://img.shields.io/badge/tests-27%20passing-brightgreen?style=for-the-badge)](#contributing)
+[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen?style=for-the-badge)](#contributing)
 [![No build step](https://img.shields.io/badge/build%20step-none-64748b?style=for-the-badge)](#how-its-built-the-honest-architecture)
 
 <br>
@@ -43,19 +43,6 @@ $ memoir recall "why isn't this postgres"
 
 > [!TIP]
 > You never typed **"postgres"** when you saved it. memoir found it by **meaning.** That's the whole pitch.
-
-<div align="center">
-
-<!-- 📽️  Demo recording goes here.
-     Record with: asciinema rec demo.cast   (then upload, or render to GIF with agg)
-     Then swap this comment for:
-     [![asciicast](https://asciinema.org/a/REPLACE_ID.svg)](https://asciinema.org/a/REPLACE_ID)
-     — or —
-     ![memoir demo](docs/demo.gif) -->
-
-_▶ Demo recording coming soon — `asciinema rec` it and drop the link here._
-
-</div>
 
 ---
 
@@ -297,16 +284,39 @@ Exposed tools: `recall` · `remember` · `list` · `forget`. The server ships us
 
 ### Do I need to do *anything* during a session? **No.**
 
-Once the MCP server is registered, memory is **automatic and reflexive.** You don't type `memoir`. You don't say "remember this." You don't decide what's worth keeping or go fishing for old notes. The agent does all of it on its own as it works:
+Once the MCP server is registered, memory is **automatic and reflexive.** You don't type `memoir`, you don't go fishing for old notes, and you rarely decide what's worth keeping. The agent does all of it on its own as it works:
 
 - 🔮 **Recalls before it acts** — walking into your repo already knowing the *why*, the *don't*, and the *not-yet*, without a reminder.
 - ✍️ **Remembers as it goes** — when a real decision is made or a landmine is found, it files the fact (right type, right code anchors) in the background.
 - 🧹 **Keeps memory honest** — when something changes, it supersedes the stale note instead of letting it rot.
 
-You just do normal work. The memory takes care of itself. *(You can still steer it — "remember that we chose SQLite because…" — but that's an option, not a chore.)*
+You just do normal work. The memory takes care of itself — with one exception worth knowing about: an [open-ended discussion that never lands on a decision](#when-should-you-say-remember-this) can slip past the agent's instinct to save. When that's something you care about, *"remember this"* pins it.
 
 > [!TIP]
 > **TL;DR** — In an agent session: **do nothing, it just happens.** At a terminal on your own: use the CLI. Same memory, either way.
+
+### When *should* you say "remember this"?
+
+Here's the honest mechanic, so you know where the edges are. memoir **does not transcribe your session.** A fact becomes a memory only when the agent *decides* it's durable and calls `remember` — it's a **judgment call, not an automatic recorder.** Nothing is saved just because it was discussed, and nothing is saved just because code was written. The save is its own deliberate act.
+
+That instinct fires reliably on **outcomes**:
+
+- ✅ a **decision** gets made — and *why*, including the option you rejected
+- ✅ a **landmine** is found
+- ✅ a **rule, boundary, or preference** is stated
+- ✅ a **chunk of work** is finished or paused
+
+But it has one blind spot: **open-ended exploration.** A topic you talked through that never hardened into a decision can slip past — it reads as "thinking out loud," so the trigger never fires. You discussed it; nobody saved it; it's gone.
+
+The fix is one sentence — **just say "remember this":**
+
+> *"Remember that ANN discussion."*
+> *"Don't lose the reasoning on why we deferred X."*
+> *"Save that for later."*
+
+Any of those is enough. You **don't** specify a type, anchors, or tags — the agent shapes the memory for you. This bypasses the agent's judgment entirely, so reach for it whenever something matters to you but didn't end in a clean *"we decided."* It's the safety net under the automatic capture.
+
+> ✨ **The feeling —** you stay in flow, and on the rare thing the agent wouldn't think to keep, three words pin it forever.
 
 ---
 
@@ -357,7 +367,7 @@ flowchart TD
 ## Contributing
 
 ```bash
-npm test     # 27 tests · built-in node:test runner · no framework dependency
+npm test     # 42 tests · built-in node:test runner · no framework dependency
 ```
 
 memoir is **built by dogfooding memoir** — every design decision in this repo was recorded into memoir itself and recalled before the next step. The `.memoir/` you cloned *is* that history; `memoir recall "architecture"` is a live tour of how it was built and why.
