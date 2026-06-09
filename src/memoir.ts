@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { MemoryStore } from './store.ts';
 import { LocalEmbedder, type Embedder } from './embed.ts';
@@ -75,6 +75,41 @@ export class Memoir {
     const dir = join(root, '.memoir');
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     return new Memoir(root, new MemoryStore(join(dir, 'memory.db')), embedder);
+  }
+
+  // Claim `cwd` as a memory root — create .memoir/ HERE, unconditionally, with no
+  // upward search. This is the "git init" of memoir: it stops a new project from
+  // silently attaching to a parent folder's memory. `created` is false when one
+  // already existed here (clean no-op); `shadows` names a parent root this now
+  // hides, if any, so the behavior is explicit rather than silent.
+  static init(
+    cwd: string = process.cwd(),
+    embedder: Embedder = new LocalEmbedder(),
+  ): { mem: Memoir; created: boolean; shadows: string | null } {
+    const dir = join(cwd, '.memoir');
+    const created = !existsSync(dir);
+    const shadows = created ? findRoot(dirname(cwd)) : null;
+    if (created) mkdirSync(dir, { recursive: true });
+    return { mem: new Memoir(cwd, new MemoryStore(join(dir, 'memory.db')), embedder), created, shadows };
+  }
+
+  // Open the memory for `cwd` ONLY if one already exists (searching upward).
+  // Never creates a store — for read-only callers like the PreToolUse hook,
+  // which must not litter a .memoir/ folder just because a file was opened.
+  static openExisting(cwd: string = process.cwd(), embedder: Embedder = new LocalEmbedder()): Memoir | null {
+    const root = findRoot(cwd);
+    if (!root) return null;
+    return new Memoir(root, new MemoryStore(join(root, '.memoir', 'memory.db')), embedder);
+  }
+
+  // Memories anchored to a given file — the engine behind proactive recall.
+  // Accepts an absolute path (normalized to repo-relative against the root) or
+  // an already-relative anchor, and also tries the bare basename so a memory
+  // anchored to "embed.ts" still surfaces. Exact match, no embeddings → fast.
+  recallByAnchor(file: string, limit = 5): Memory[] {
+    const rel = (isAbsolute(file) ? relative(this.root, file) : file).replaceAll('\\', '/');
+    const candidates = [rel, basename(rel)];
+    return this.store.byAnchor(candidates, { limit });
   }
 
   async remember(input: RememberInput): Promise<RememberResult> {

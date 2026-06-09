@@ -130,6 +130,39 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  'init',
+  {
+    title: 'Initialize a memory root',
+    description:
+      'Create a .memoir/ store in the current project folder, claiming it as its OWN memory root (like `git init`). Rarely needed — the store is auto-created on first remember. Use only to deliberately claim a folder, e.g. to stop a new project nested under another from sharing the parent folder\'s memory.',
+    inputSchema: {},
+  },
+  async () => {
+    const { mem: fresh, created, shadows } = Memoir.init();
+    const count = fresh.count();
+    fresh.close();
+    const lines = [
+      created
+        ? `Initialized a memory root at ${fresh.root}/.memoir (${count} memories).`
+        : `Already initialized at ${fresh.root}/.memoir (${count} memories).`,
+    ];
+    if (created && shadows) {
+      lines.push(
+        `Note: this shadows a parent .memoir at ${shadows}/.memoir — this project now has its own separate memory.`,
+      );
+    }
+    // Be honest: this server opened its store at startup. A root created now
+    // does not redirect the live session until the server is restarted.
+    if (fresh.root !== mem.root) {
+      lines.push(
+        `Heads up: this session is still using the store at ${mem.root}/.memoir. Restart the memoir MCP server (new session) for the new root here to take effect.`,
+      );
+    }
+    return { content: [{ type: 'text', text: lines.join(' ') }] };
+  },
+);
+
 // Warm the embedder before opening the protocol: confines any one-time
 // model-load logging to startup (stdout must stay clean once connected) and
 // makes the first recall/remember fast.

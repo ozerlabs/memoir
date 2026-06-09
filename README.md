@@ -315,6 +315,7 @@ You just do normal work. The memory takes care of itself. *(You can still steer 
 The **manual door** — for working at a terminal yourself. In an agent session you usually won't need this; [just talk to the agent](#do-i-need-to-do-anything-during-a-session-no) instead.
 
 ```bash
+memoir init                     # create .memoir/ here — claim this folder as a memory root
 memoir remember <content…> --type <type> [--anchors a,b] [--tags x,y] [--supersedes id,id]
 memoir recall   <query…>   [--type <type>] [--limit N]
 memoir list                [--type <type>] [--limit N]

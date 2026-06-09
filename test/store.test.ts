@@ -213,6 +213,37 @@ test('vectorSearch: ranks by cosine and respects the model filter and dimensions
   assert.ok(!ids.includes(wrongDim.id), 'a dimension mismatch is skipped');
 });
 
+test('byAnchor matches an exact anchor, rejects partials, and skips superseded', (t) => {
+  const { store } = makeStore(t);
+  const a = mem({ content: 'gotcha in embed', anchors: ['src/embed.ts'] });
+  const b = mem({ content: 'note on a similarly-named file', anchors: ['src/embed.tsx'] });
+  const c = mem({ content: 'unrelated', anchors: ['src/store.ts'] });
+  const old = mem({ content: 'stale embed note', anchors: ['src/embed.ts'] });
+  store.add(a);
+  store.add(b);
+  store.add(c);
+  store.add(old);
+  store.supersede(old.id, a.id, clock);
+
+  const hits = store.byAnchor(['src/embed.ts']);
+  const ids = hits.map((h) => h.id);
+  assert.ok(ids.includes(a.id), 'exact anchor matches');
+  assert.ok(!ids.includes(b.id), '"src/embed.ts" must not match "src/embed.tsx"');
+  assert.ok(!ids.includes(c.id), 'a different file does not match');
+  assert.ok(!ids.includes(old.id), 'superseded memory is excluded');
+});
+
+test('byAnchor escapes LIKE wildcards so an anchor with "_" matches literally', (t) => {
+  const { store } = makeStore(t);
+  const under = mem({ content: 'underscore file', anchors: ['a_b.ts'] });
+  const wild = mem({ content: 'would match if _ were a wildcard', anchors: ['axb.ts'] });
+  store.add(under);
+  store.add(wild);
+
+  const hits = store.byAnchor(['a_b.ts']).map((h) => h.id);
+  assert.deepEqual(hits, [under.id], 'only the literal underscore anchor matches');
+});
+
 test('search and recent ignore superseded memories and honor the type filter', (t) => {
   const { store } = makeStore(t);
   const old = mem({ content: 'old approach using global state' });

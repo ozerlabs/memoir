@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Memoir, rrf } from '../src/memoir.ts';
@@ -94,6 +94,70 @@ test('forget removes a memory by short-id prefix', async (t) => {
   assert.equal(mem.forget(memory.id.slice(0, 8)), true);
   assert.equal(mem.count(), 0);
   assert.equal(mem.forget('deadbeef'), false, 'a non-existent id is a no-op');
+});
+
+// --- anchored recall + non-creating open -------------------------------------
+
+test('recallByAnchor finds memories by absolute path (normalized) and basename', async (t) => {
+  const mem = makeMemoir(t, new StubEmbedder(null));
+  const { memory } = await mem.remember({
+    content: 'do not await inside this loop',
+    type: 'gotcha',
+    anchors: ['src/embed.ts'],
+  });
+
+  // absolute path under the root → normalized to the relative anchor
+  const abs = join(mem.root, 'src', 'embed.ts');
+  assert.ok(mem.recallByAnchor(abs).some((m) => m.id === memory.id), 'absolute path matches');
+  // already-relative anchor
+  assert.ok(mem.recallByAnchor('src/embed.ts').some((m) => m.id === memory.id), 'relative matches');
+  // basename fallback: a memory anchored to bare "embed.ts" still surfaces
+  const { memory: base } = await mem.remember({ content: 'bare basename note', type: 'gotcha', anchors: ['embed.ts'] });
+  assert.ok(mem.recallByAnchor(abs).some((m) => m.id === base.id), 'basename fallback matches');
+});
+
+test('openExisting returns null and does NOT create a store when none exists', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-noexist-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  assert.equal(Memoir.openExisting(dir), null, 'no .memoir → null');
+  assert.equal(existsSync(join(dir, '.memoir')), false, 'and nothing was created');
+
+  Memoir.init(dir).mem.close(); // now there is one
+  const reopened = Memoir.openExisting(dir);
+  assert.ok(reopened, '.memoir exists → opens');
+  reopened?.close();
+});
+
+// --- init: claiming a memory root --------------------------------------------
+
+test('init creates a store in the folder and is a clean no-op the second time', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-init-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const first = Memoir.init(dir);
+  assert.equal(first.created, true);
+  assert.equal(first.shadows, null);
+  assert.ok(existsSync(join(dir, '.memoir', 'memory.db')), 'memory.db is created here');
+  assert.equal(first.mem.count(), 0);
+  first.mem.close();
+
+  const second = Memoir.init(dir);
+  assert.equal(second.created, false, 'a second init is a no-op');
+  second.mem.close();
+});
+
+test('init in a nested folder reports it is shadowing a parent .memoir', (t) => {
+  const parent = mkdtempSync(join(tmpdir(), 'memoir-parent-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const child = join(parent, 'nested');
+  mkdirSync(child);
+
+  Memoir.init(parent).mem.close(); // parent now owns a .memoir
+  const res = Memoir.init(child); // claim the child as its own root
+  assert.equal(res.created, true);
+  assert.equal(res.shadows, parent, 'the shadowed parent root is reported');
+  res.mem.close();
 });
 
 // --- RRF fusion, as a pure unit ----------------------------------------------

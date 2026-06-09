@@ -1,6 +1,8 @@
 #!/usr/bin/env -S NODE_NO_WARNINGS=1 node
 import { parseArgs } from 'node:util';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Memoir } from './memoir.ts';
 import { MEMORY_TYPES, isMemoryType, type Memory } from './types.ts';
 
@@ -45,6 +47,74 @@ export function parseLimit(v: string | undefined, dflt: number): number {
   return Math.min(n, 1000);
 }
 
+// Minimal JSON value type so we can read/merge an arbitrary settings.json
+// without `unknown` or blind casts — we narrow with typeof/Array.isArray guards.
+type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
+
+function asObject(v: JsonValue | undefined): { [k: string]: JsonValue } {
+  return v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+
+// Is a hook already registered for this script path? Walks the loose JSON shape
+// defensively so a hand-edited settings.json can't crash the installer.
+function groupsReference(groups: JsonValue[], script: string): boolean {
+  return groups.some((g) => {
+    const hooks = asObject(g).hooks;
+    if (!Array.isArray(hooks)) return false;
+    return hooks.some((h) => {
+      const cmd = asObject(h).command;
+      return typeof cmd === 'string' && cmd.includes(script);
+    });
+  });
+}
+
+// Merge the PreToolUse (anchored recall) + SessionStart (where-we-left-off)
+// hooks into <cwd>/.claude/settings.json. Idempotent: skips anything already
+// pointing at our scripts, and preserves every other key in the file.
+export function installHooks(
+  cwd: string,
+  hooksDir: string,
+): { added: string[]; skipped: string[]; file: string } {
+  const specs = [
+    { event: 'PreToolUse', matcher: 'Read|Edit|Write', script: join(hooksDir, 'pre-tool-recall.ts') },
+    { event: 'SessionStart', matcher: undefined, script: join(hooksDir, 'session-start.ts') },
+  ];
+  const dir = join(cwd, '.claude');
+  const file = join(dir, 'settings.json');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+  let settings: { [k: string]: JsonValue } = {};
+  if (existsSync(file)) {
+    const parsed: JsonValue = JSON.parse(readFileSync(file, 'utf8'));
+    settings = asObject(parsed);
+  }
+  const hooks = asObject(settings.hooks);
+  const added: string[] = [];
+  const skipped: string[] = [];
+
+  for (const spec of specs) {
+    const existing = hooks[spec.event];
+    const groups: JsonValue[] = Array.isArray(existing) ? existing : [];
+    if (groupsReference(groups, spec.script)) {
+      skipped.push(spec.event);
+      continue;
+    }
+    const handler: { [k: string]: JsonValue } = {
+      type: 'command',
+      command: `NODE_NO_WARNINGS=1 node "${spec.script}"`,
+      timeout: 10,
+    };
+    const group: { [k: string]: JsonValue } = { hooks: [handler] };
+    if (spec.matcher) group.matcher = spec.matcher;
+    hooks[spec.event] = [...groups, group];
+    added.push(spec.event);
+  }
+
+  settings.hooks = hooks;
+  writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
+  return { added, skipped, file };
+}
+
 function printMemory(m: Memory): void {
   const head = `${C.cyan(`[${m.type}]`)} ${C.dim(m.id.slice(0, 8))} ${C.dim(ago(m.updatedAt))}`;
   console.log(head);
@@ -59,11 +129,14 @@ function printMemory(m: Memory): void {
 const HELP = `${C.bold('memoir')} — local long-term memory for your codebase
 
 ${C.bold('Usage')}
+  memoir init                     # create .memoir/ here — claim this folder as a memory root
   memoir remember <content...> --type <type> [--anchors a,b] [--tags x,y] [--supersedes id,id]
   memoir recall <query...> [--type <type>] [--limit N]
+  memoir anchored <file> [--limit N] [--json]   # memories anchored to a file (proactive recall)
   memoir list [--type <type>] [--limit N]
   memoir forget <id>
   memoir reembed
+  memoir hook install            # register the PreToolUse + SessionStart hooks in ./.claude/settings.json
   memoir types
   memoir where
 
@@ -85,6 +158,7 @@ function parseCliArgs() {
       tags: { type: 'string' },
       limit: { type: 'string', short: 'n' },
       supersedes: { type: 'string' },
+      json: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
   });
@@ -107,6 +181,40 @@ async function main(): Promise<void> {
 
   if (cmd === 'types') {
     console.log(MEMORY_TYPES.join('\n'));
+    return;
+  }
+
+  if (cmd === 'init') {
+    const { mem, created, shadows } = Memoir.init();
+    try {
+      const dbPath = join(mem.root, '.memoir', 'memory.db');
+      const tail = C.dim(`(${mem.count()} memories)`);
+      if (created) {
+        console.log(`${C.green('initialized')} ${dbPath}  ${tail}`);
+        if (shadows) {
+          console.log(
+            C.yellow(
+              `  note: shadowing a parent .memoir at ${join(shadows, '.memoir')} — this project now has its own memory`,
+            ),
+          );
+        }
+      } else {
+        console.log(`${C.dim('already initialized')} ${dbPath}  ${tail}`);
+      }
+    } finally {
+      mem.close();
+    }
+    return;
+  }
+
+  if (cmd === 'hook') {
+    if (positionals[1] !== 'install') return fail('usage: memoir hook install');
+    const hooksDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'hooks');
+    const { added, skipped, file } = installHooks(process.cwd(), hooksDir);
+    for (const a of added) console.log(`${C.green('+ installed')} ${a} hook`);
+    for (const s of skipped) console.log(C.dim(`already present: ${s} hook`));
+    console.log(C.dim(`→ ${file}`));
+    console.log(C.dim('restart Claude Code (new session) for the hooks to take effect'));
     return;
   }
 
@@ -155,6 +263,25 @@ async function main(): Promise<void> {
       }
       console.log(C.dim(`${results.length} memory(ies) for "${query || '(recent)'}"\n`));
       for (const r of results) printMemory(r);
+      return;
+    }
+
+    if (cmd === 'anchored') {
+      const path = positionals[1];
+      if (!path) return fail('pass a file path — memoir anchored <file>');
+      const limit = parseLimit(values.limit, 5);
+      const abs = isAbsolute(path) ? path : join(process.cwd(), path);
+      const results = mem.recallByAnchor(abs, limit);
+      if (values.json) {
+        console.log(JSON.stringify(results, null, 2));
+        return;
+      }
+      if (!results.length) {
+        console.log(C.dim(`no memories anchored to ${path}`));
+        return;
+      }
+      console.log(C.dim(`${results.length} memory(ies) anchored to ${path}\n`));
+      for (const m of results) printMemory(m);
       return;
     }
 

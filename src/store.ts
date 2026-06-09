@@ -313,6 +313,32 @@ export class MemoryStore {
     return rows.map((r) => ({ ...rowToMemory(r), score: asNumber(r.score) }));
   }
 
+  // Active memories anchored to any of the given exact anchor strings (e.g. a
+  // file path or its basename). Matches the QUOTED token inside the JSON anchors
+  // array, so "src/x.ts" never matches "src/x.tsx". LIKE wildcards in the anchor
+  // are escaped so '_' and '%' match literally — same discipline as resolveId.
+  byAnchor(anchors: string[], opts: SearchOpts = {}): Memory[] {
+    const limit = opts.limit ?? 5;
+    const uniq = [...new Set(anchors.filter(Boolean))];
+    if (uniq.length === 0) return [];
+    const clauses: string[] = [];
+    const params: (string | number)[] = [];
+    for (const a of uniq) {
+      const esc = a.replace(/[\\%_]/g, (c) => `\\${c}`);
+      clauses.push(`anchors LIKE ? ESCAPE '\\'`);
+      params.push(`%"${esc}"%`);
+    }
+    let sql = `SELECT ${MEMORY_COLS} FROM memories
+       WHERE status = 'active' AND (${clauses.join(' OR ')})`;
+    if (opts.type) {
+      sql += ` AND type = ?`;
+      params.push(opts.type);
+    }
+    sql += ` ORDER BY updated_at DESC LIMIT ?`;
+    params.push(limit);
+    return this.db.prepare(sql).all(...params).map(rowToMemory);
+  }
+
   recent(opts: SearchOpts = {}): Memory[] {
     const limit = opts.limit ?? 5;
     let sql = `SELECT ${MEMORY_COLS} FROM memories WHERE status = 'active'`;
