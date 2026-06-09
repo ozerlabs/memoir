@@ -26,26 +26,6 @@ The *why*, the *don't*, the *not-yet*, and the *how-we-like-it* — captured onc
 
 ---
 
-## ⏱️ The 5-second demo
-
-```console
-$ memoir remember "Store is embedded SQLite — no server, and a graph DB hurts our query types" \
-    --type decision --anchors src/store.ts --tags storage
-remembered a1b2c3d4 [decision]
-
-$ memoir recall "why isn't this postgres"
-1 memory(ies) for "why isn't this postgres"
-
-[decision] a1b2c3d4 3s ago
-  Store is embedded SQLite — no server, and a graph DB hurts our query types
-  @ src/store.ts   # storage
-```
-
-> [!TIP]
-> You never typed **"postgres"** when you saved it. memoir found it by **meaning.** That's the whole pitch.
-
----
-
 ## 🗂️ The old way: your context rots in `.md` files
 
 You know the drill. `CLAUDE.md`, `NOTES.md`, `ARCHITECTURE.md`, `DECISIONS.md` — a growing graveyard of markdown you started with good intentions. Here's how that holds up:
