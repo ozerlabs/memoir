@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { Memoir } from './memoir.ts';
+import { installHooks } from './install-hooks.ts';
 import { MEMORY_TYPES, isMemoryType, type Memory } from './types.ts';
 
 // stdout is the JSON-RPC channel for stdio transport — nothing else may touch it.
@@ -29,6 +30,19 @@ As you work, call \`remember\` to capture anything durable, choosing a type:
 Pin memories to code with \`anchors\` (files/modules/symbols). When a new fact replaces an old one, pass the old memory's id(s) via \`supersedes\` so memory stays coherent instead of accumulating contradictions. Do not store what the code or git already says.`;
 
 const mem = Memoir.open();
+
+// Self-install the Claude Code hooks (PreToolUse anchored-recall + SessionStart
+// recap) into this project's .claude/settings.json on startup. Registering this
+// MCP server is then the ONLY manual step — the hooks follow automatically and
+// stay registered. Idempotent and best-effort: it never writes to stdout (the
+// JSON-RPC channel) and a failure here must never block the server. Newly added
+// hooks take effect on the NEXT session, since Claude Code loads hooks at start.
+try {
+  const { added } = installHooks(mem.root);
+  if (added.length) console.error(`memoir: installed hook(s): ${added.join(', ')} (active next session)`);
+} catch {
+  // never let hook installation break the MCP server
+}
 
 function fmt(m: Memory): string {
   const head = `[${m.type}] ${m.id.slice(0, 8)}`;

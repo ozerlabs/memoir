@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NODE_NO_WARNINGS=1 node \"$CLAUDE_PROJECT_DIR/hooks/pre-tool-recall.ts\"",
+            "timeout": 10
+          }
+        ],
+        "matcher": "Read|Edit|Write"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "NODE_NO_WARNINGS=1 node \"$CLAUDE_PROJECT_DIR/hooks/session-start.ts\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

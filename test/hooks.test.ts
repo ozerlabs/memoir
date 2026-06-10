@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '../src/store.ts';
 import { formatAnchoredContext, formatSessionContext } from '../src/hooks.ts';
-import { installHooks } from '../src/cli.ts';
+import { installHooks } from '../src/install-hooks.ts';
 import type { Memory } from '../src/types.ts';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -91,6 +91,30 @@ test('installHooks writes both hooks, preserves other keys, and is idempotent', 
   const second = installHooks(dir, HOOKS_DIR);
   assert.deepEqual(second.added, [], 'nothing added the second time');
   assert.deepEqual(second.skipped.sort(), ['PreToolUse', 'SessionStart']);
+});
+
+test('installHooks emits a $CLAUDE_PROJECT_DIR command when hooks live inside the project', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-portable-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const inside = join(dir, 'hooks');
+  mkdirSync(inside);
+
+  const { file } = installHooks(dir, inside);
+  const settings = JSON.parse(readFileSync(file, 'utf8'));
+  const cmd = settings.hooks.PreToolUse[0].hooks[0].command;
+  assert.match(cmd, /\$CLAUDE_PROJECT_DIR\/hooks\/pre-tool-recall\.ts/, 'machine-independent, committable');
+  assert.ok(!cmd.includes(dir), 'no absolute machine path leaks into the command');
+});
+
+test('installHooks keeps an absolute path when hooks live outside the project', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-abs-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const { file } = installHooks(dir, HOOKS_DIR); // HOOKS_DIR is the real repo, outside dir
+  const settings = JSON.parse(readFileSync(file, 'utf8'));
+  const cmd = settings.hooks.PreToolUse[0].hooks[0].command;
+  assert.ok(cmd.includes(HOOKS_DIR), 'consumer repos need the absolute path to resolve');
+  assert.ok(!cmd.includes('$CLAUDE_PROJECT_DIR'), 'no project-relative form when outside');
 });
 
 // --- pre-tool-recall hook, end to end ----------------------------------------

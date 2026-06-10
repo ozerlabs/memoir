@@ -1,9 +1,8 @@
 #!/usr/bin/env -S NODE_NO_WARNINGS=1 node
 import { parseArgs } from 'node:util';
-import { dirname, isAbsolute, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { Memoir } from './memoir.ts';
+import { installHooks } from './install-hooks.ts';
 import { MEMORY_TYPES, isMemoryType, type Memory } from './types.ts';
 import type { AnnAdvisory } from './advisory.ts';
 
@@ -56,74 +55,6 @@ export function parseLimit(v: string | undefined, dflt: number): number {
   const n = Number.parseInt(v, 10);
   if (!Number.isFinite(n) || n < 1) return dflt;
   return Math.min(n, 1000);
-}
-
-// Minimal JSON value type so we can read/merge an arbitrary settings.json
-// without `unknown` or blind casts — we narrow with typeof/Array.isArray guards.
-type JsonValue = null | boolean | number | string | JsonValue[] | { [k: string]: JsonValue };
-
-function asObject(v: JsonValue | undefined): { [k: string]: JsonValue } {
-  return v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v) ? v : {};
-}
-
-// Is a hook already registered for this script path? Walks the loose JSON shape
-// defensively so a hand-edited settings.json can't crash the installer.
-function groupsReference(groups: JsonValue[], script: string): boolean {
-  return groups.some((g) => {
-    const hooks = asObject(g).hooks;
-    if (!Array.isArray(hooks)) return false;
-    return hooks.some((h) => {
-      const cmd = asObject(h).command;
-      return typeof cmd === 'string' && cmd.includes(script);
-    });
-  });
-}
-
-// Merge the PreToolUse (anchored recall) + SessionStart (where-we-left-off)
-// hooks into <cwd>/.claude/settings.json. Idempotent: skips anything already
-// pointing at our scripts, and preserves every other key in the file.
-export function installHooks(
-  cwd: string,
-  hooksDir: string,
-): { added: string[]; skipped: string[]; file: string } {
-  const specs = [
-    { event: 'PreToolUse', matcher: 'Read|Edit|Write', script: join(hooksDir, 'pre-tool-recall.ts') },
-    { event: 'SessionStart', matcher: undefined, script: join(hooksDir, 'session-start.ts') },
-  ];
-  const dir = join(cwd, '.claude');
-  const file = join(dir, 'settings.json');
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-  let settings: { [k: string]: JsonValue } = {};
-  if (existsSync(file)) {
-    const parsed: JsonValue = JSON.parse(readFileSync(file, 'utf8'));
-    settings = asObject(parsed);
-  }
-  const hooks = asObject(settings.hooks);
-  const added: string[] = [];
-  const skipped: string[] = [];
-
-  for (const spec of specs) {
-    const existing = hooks[spec.event];
-    const groups: JsonValue[] = Array.isArray(existing) ? existing : [];
-    if (groupsReference(groups, spec.script)) {
-      skipped.push(spec.event);
-      continue;
-    }
-    const handler: { [k: string]: JsonValue } = {
-      type: 'command',
-      command: `NODE_NO_WARNINGS=1 node "${spec.script}"`,
-      timeout: 10,
-    };
-    const group: { [k: string]: JsonValue } = { hooks: [handler] };
-    if (spec.matcher) group.matcher = spec.matcher;
-    hooks[spec.event] = [...groups, group];
-    added.push(spec.event);
-  }
-
-  settings.hooks = hooks;
-  writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
-  return { added, skipped, file };
 }
 
 function printMemory(m: Memory): void {
@@ -220,8 +151,7 @@ async function main(): Promise<void> {
 
   if (cmd === 'hook') {
     if (positionals[1] !== 'install') return fail('usage: memoir hook install');
-    const hooksDir = join(dirname(dirname(fileURLToPath(import.meta.url))), 'hooks');
-    const { added, skipped, file } = installHooks(process.cwd(), hooksDir);
+    const { added, skipped, file } = installHooks(process.cwd());
     for (const a of added) console.log(`${C.green('+ installed')} ${a} hook`);
     for (const s of skipped) console.log(C.dim(`already present: ${s} hook`));
     console.log(C.dim(`→ ${file}`));
