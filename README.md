@@ -15,7 +15,7 @@ The *why*, the *don't*, the *not-yet*, and the *how-we-like-it* — captured onc
 [![Runtime deps](https://img.shields.io/badge/runtime%20deps-0-22c55e?style=for-the-badge)](#how-its-built-the-honest-architecture)
 [![Offline](https://img.shields.io/badge/works-offline-10b981?style=for-the-badge)](#-it-works-on-a-plane-it-works-air-gapped-it-just-works)
 [![MCP](https://img.shields.io/badge/MCP-ready-7c3aed?style=for-the-badge)](#for-your-ai-agent-mcp)
-[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen?style=for-the-badge)](#contributing)
+[![Tests](https://img.shields.io/badge/tests-52%20passing-brightgreen?style=for-the-badge)](#contributing)
 [![No build step](https://img.shields.io/badge/build%20step-none-64748b?style=for-the-badge)](#how-its-built-the-honest-architecture)
 
 <br>
@@ -340,14 +340,16 @@ flowchart TD
 
 **📦 Dependency map** — the core CLI/library is **zero runtime dependencies.** The MCP entrypoint adds `@modelcontextprotocol/sdk` + `zod`. Embeddings add `transformers.js` (optional). TypeScript runs directly on Node 24 via type-stripping — **there is no build step.**
 
-**🧭 Deferred on purpose** — a graph layer (edges are just a table away with recursive-CTE traversal, earned only when temporal/relational queries prove they need it) and an ANN index (only past ~50k memories). *Vector-first, graph-ready.*
+**🧭 Deferred on purpose** — a graph layer (edges are just a table away with recursive-CTE traversal, earned only when temporal/relational queries prove they need it) and an ANN index. *Vector-first, graph-ready.*
+
+> **When does ANN become worth it?** Recall's vector search is brute-force — linear in the number of memories — which is sub-millisecond at any real repo's scale. The point it stops being free is derived, not guessed: a ~50 ms search budget (so proactive recall stays instant) ÷ ~2 µs per memory ≈ **25,000 memories**. So memoir watches its own size and **warns you in red before you get there** — at 80% (20k) it nudges, past 25k it escalates — telling you to switch to a `sqlite-vec` ANN index. Tune or silence the line with `MEMOIR_ANN_THRESHOLD` (set it to `0` to disable). You never have to guess when "too big" arrives — memoir tells you.
 
 ---
 
 ## Contributing
 
 ```bash
-npm test     # 42 tests · built-in node:test runner · no framework dependency
+npm test     # 52 tests · built-in node:test runner · no framework dependency
 ```
 
 memoir is **built by dogfooding memoir** — every design decision in this repo was recorded into memoir itself and recalled before the next step. The `.memoir/` you cloned *is* that history; `memoir recall "architecture"` is a live tour of how it was built and why.

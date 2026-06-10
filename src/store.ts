@@ -35,6 +35,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
 
 CREATE INDEX IF NOT EXISTS idx_memories_status ON memories(status);
 CREATE INDEX IF NOT EXISTS idx_memories_type   ON memories(type);
+
+-- Small key/value side table for bookkeeping that isn't a memory — e.g. the
+-- ANN advisory's "last warned bucket" throttle marker. IF NOT EXISTS so it is
+-- created idempotently on both fresh and pre-existing stores.
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
 
 // The columns rowToMemory needs — never SELECT *, so the embedding BLOB is not
@@ -375,6 +383,20 @@ export class MemoryStore {
   count(): number {
     const r = this.db.prepare(`SELECT COUNT(*) AS n FROM memories WHERE status = 'active'`).get();
     return r ? asNumber(r.n) : 0;
+  }
+
+  // Key/value bookkeeping (see the `meta` table). Used by the ANN advisory to
+  // remember the last warned bucket so the write-time nag fires once per +1,000.
+  getMeta(key: string): string | null {
+    const r = this.db.prepare(`SELECT value FROM meta WHERE key = ?`).get(key);
+    return r ? asStringOrNull(r.value) : null;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.db
+      .prepare(`INSERT INTO meta (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(key, value);
   }
 
   close(): void {

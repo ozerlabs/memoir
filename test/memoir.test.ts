@@ -160,6 +160,49 @@ test('init in a nested folder reports it is shadowing a parent .memoir', (t) => 
   res.mem.close();
 });
 
+// --- ANN advisory wiring + throttle ------------------------------------------
+
+test('remember surfaces an ANN advisory on entering the band, throttled per +1k', async (t) => {
+  const prev = process.env.MEMOIR_ANN_THRESHOLD;
+  process.env.MEMOIR_ANN_THRESHOLD = '3'; // tiny threshold → warn floor 2
+  t.after(() => {
+    if (prev === undefined) delete process.env.MEMOIR_ANN_THRESHOLD;
+    else process.env.MEMOIR_ANN_THRESHOLD = prev;
+  });
+  const mem = makeMemoir(t, new StubEmbedder(null));
+
+  const r1 = await mem.remember({ content: 'one', type: 'state' }); // count 1 → ok
+  assert.equal(r1.advisory, null, 'below the warn floor → no advisory');
+
+  const r2 = await mem.remember({ content: 'two', type: 'state' }); // count 2 → approaching
+  assert.ok(r2.advisory, 'entering the band fires an advisory');
+  assert.equal(r2.advisory?.tier, 'approaching');
+
+  const r3 = await mem.remember({ content: 'three', type: 'state' }); // count 3 → over, same bucket
+  assert.equal(r3.advisory, null, 'same +1k bucket → throttled, no repeat');
+
+  // The unthrottled status surface still reports it (this is what `where` uses).
+  const live = mem.annAdvisory();
+  assert.ok(live, 'annAdvisory() reflects the live count regardless of throttle');
+  assert.equal(live?.tier, 'over');
+});
+
+test('an ANN threshold of 0 disables the advisory on every surface', async (t) => {
+  const prev = process.env.MEMOIR_ANN_THRESHOLD;
+  process.env.MEMOIR_ANN_THRESHOLD = '0';
+  t.after(() => {
+    if (prev === undefined) delete process.env.MEMOIR_ANN_THRESHOLD;
+    else process.env.MEMOIR_ANN_THRESHOLD = prev;
+  });
+  const mem = makeMemoir(t, new StubEmbedder(null));
+
+  for (let i = 0; i < 5; i++) {
+    const r = await mem.remember({ content: `m${i}`, type: 'state' });
+    assert.equal(r.advisory, null, 'disabled → never any write advisory');
+  }
+  assert.equal(mem.annAdvisory(), null, 'disabled → no status advisory either');
+});
+
 // --- RRF fusion, as a pure unit ----------------------------------------------
 
 test('rrf: an item ranked high in both lists wins', () => {

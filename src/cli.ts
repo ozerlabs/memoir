@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Memoir } from './memoir.ts';
 import { MEMORY_TYPES, isMemoryType, type Memory } from './types.ts';
+import type { AnnAdvisory } from './advisory.ts';
 
 const C = process.stdout.isTTY
   ? {
@@ -21,6 +22,16 @@ const C = process.stdout.isTTY
       yellow: (s: string) => s,
       green: (s: string) => s,
     };
+
+// The ANN advisory, in red, to STDERR — so it never pollutes stdout (`--json`,
+// piped recall output). Color is gated on the stderr TTY independently of C
+// (which gates on stdout): 'over' is bright/bold red to escalate past the cliff.
+function warnAdvisory(adv: AnnAdvisory): void {
+  const paint = process.stderr.isTTY
+    ? (s: string) => `\x1b[${adv.tier === 'over' ? '1;31' : '31'}m${s}\x1b[0m`
+    : (s: string) => s;
+  process.stderr.write(`${paint(`⚠️  ${adv.message}`)}\n`);
+}
 
 function ago(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -223,6 +234,8 @@ async function main(): Promise<void> {
     if (cmd === 'where') {
       const dbPath = join(mem.root, '.memoir', 'memory.db');
       console.log(`${dbPath}  ${C.dim(`(${mem.count()} memories)`)}`);
+      const adv = mem.annAdvisory();
+      if (adv) warnAdvisory(adv);
       return;
     }
 
@@ -234,7 +247,7 @@ async function main(): Promise<void> {
         return fail(`--type is required, one of: ${MEMORY_TYPES.join(', ')}`);
       }
       const requested = csv(values.supersedes);
-      const { memory: m, superseded, embedded } = await mem.remember({
+      const { memory: m, superseded, embedded, advisory } = await mem.remember({
         content,
         type,
         anchors: csv(values.anchors),
@@ -249,6 +262,7 @@ async function main(): Promise<void> {
       } else if (requested.length) {
         console.log(C.yellow(`  warning: --supersedes matched nothing (check the ids)`));
       }
+      if (advisory) warnAdvisory(advisory);
       return;
     }
 

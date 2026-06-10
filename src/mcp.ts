@@ -84,7 +84,7 @@ server.registerTool(
         content: [{ type: 'text', text: `Invalid type. Use one of: ${MEMORY_TYPES.join(', ')}` }],
       };
     }
-    const { memory, superseded, embedded } = await mem.remember({
+    const { memory, superseded, embedded, advisory } = await mem.remember({
       content,
       type,
       anchors,
@@ -93,8 +93,11 @@ server.registerTool(
     });
     const note = superseded.length ? ` (superseded ${superseded.length})` : '';
     const emb = embedded ? '' : ' [keyword-only]';
+    // Fold the ANN advisory into the RETURNED text (never stdout — that's the
+    // JSON-RPC channel) so the agent can relay it to the user.
+    const adv = advisory ? `\n\n⚠️ ${advisory.message}` : '';
     return {
-      content: [{ type: 'text', text: `Remembered ${memory.id.slice(0, 8)} [${memory.type}]${note}${emb}` }],
+      content: [{ type: 'text', text: `Remembered ${memory.id.slice(0, 8)} [${memory.type}]${note}${emb}${adv}` }],
     };
   },
 );

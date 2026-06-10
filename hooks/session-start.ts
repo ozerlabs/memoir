@@ -37,7 +37,12 @@ async function main(): Promise<void> {
       merged.push(m);
       if (merged.length >= 6) break;
     }
-    const ctx = formatSessionContext(merged);
+    // Lead with the ANN advisory (if the store has entered the warning band) so
+    // it's the first thing the session sees, then the "where we left off" recap.
+    const adv = mem.annAdvisory();
+    const ctx = [adv ? `⚠️ ${adv.message}` : null, formatSessionContext(merged)]
+      .filter(Boolean)
+      .join('\n\n');
     if (ctx) {
       process.stdout.write(
         JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: ctx } }),

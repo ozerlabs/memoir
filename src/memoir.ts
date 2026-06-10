@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { randomUUID } from 'node:crypto';
 import { MemoryStore } from './store.ts';
 import { LocalEmbedder, type Embedder } from './embed.ts';
+import { advisoryFor, type AnnAdvisory } from './advisory.ts';
 import type { Memory, MemoryType, MemorySource, RecallResult } from './types.ts';
 
 // Find the nearest .memoir/ walking up from `start`, the way git finds .git.
@@ -49,6 +50,10 @@ export interface RememberResult {
   memory: Memory;
   superseded: string[];
   embedded: boolean;
+  // Present only when this write pushed the store into/over the ANN warning
+  // band AND it's a fresh +1,000 bucket (throttled). Callers surface it; null
+  // means "nothing to say". See annAdvisoryOnWrite.
+  advisory: AnnAdvisory | null;
 }
 
 export interface RecallOpts {
@@ -150,7 +155,40 @@ export class Memoir {
       resolved,
       now,
     );
-    return { memory, superseded, embedded: embedding !== null };
+    // The count just grew — surface an ANN advisory if we've entered the band.
+    // Best-effort and throttled; it can never affect the write above.
+    return { memory, superseded, embedded: embedding !== null, advisory: this.annAdvisoryOnWrite() };
+  }
+
+  // The current ANN advisory for STATUS surfaces (e.g. `memoir where`, the
+  // SessionStart hook) — unthrottled, reflecting the live count. Null when the
+  // store is comfortably below the warn floor (or the advisory is disabled).
+  annAdvisory(): AnnAdvisory | null {
+    try {
+      return advisoryFor(this.store.count());
+    } catch {
+      return null;
+    }
+  }
+
+  // The ANN advisory for the WRITE path — throttled to once per +1,000 memories
+  // so back-to-back saves don't repeat the same nag. Persists the last warned
+  // bucket in the `meta` table. Wrapped so a bookkeeping failure here can never
+  // break a remember() that already committed.
+  private annAdvisoryOnWrite(): AnnAdvisory | null {
+    try {
+      const adv = advisoryFor(this.store.count());
+      if (!adv) return null;
+      // Sentinel -1 for "never warned" — Number(null) is 0, which would wrongly
+      // suppress the very first advisory at bucket 0.
+      const raw = this.store.getMeta('ann_warn_bucket');
+      const last = raw === null ? -1 : Number(raw);
+      if (adv.bucket <= last) return null; // same (or lower) bucket → stay quiet
+      this.store.setMeta('ann_warn_bucket', String(adv.bucket));
+      return adv;
+    } catch {
+      return null;
+    }
   }
 
   // Hybrid recall: fuse keyword (bm25) and semantic (vector) rankings.
