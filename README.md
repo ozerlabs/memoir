@@ -270,33 +270,31 @@ Once the MCP server is registered, memory is **automatic and reflexive.** You do
 - ✍️ **Remembers as it goes** — when a real decision is made or a landmine is found, it files the fact (right type, right code anchors) in the background.
 - 🧹 **Keeps memory honest** — when something changes, it supersedes the stale note instead of letting it rot.
 
-You just do normal work. The memory takes care of itself — with one exception worth knowing about: an [open-ended discussion that never lands on a decision](#when-should-you-say-remember-this) can slip past the agent's instinct to save. When that's something you care about, *"remember this"* pins it.
+You just do normal work. The memory takes care of itself — with one exception worth knowing about: an [open-ended discussion that never lands on a decision](#-when-to-just-say-remember-this) can slip past the agent's instinct to save. When that's something you care about, *"remember this"* pins it.
 
 > [!TIP]
 > **TL;DR** — In an agent session: **do nothing, it just happens.** At a terminal on your own: use the CLI. Same memory, either way.
 
-### When *should* you say "remember this"?
+### 🗣️ When to just say "remember this"
 
-Here's the honest mechanic, so you know where the edges are. memoir **does not transcribe your session.** A fact becomes a memory only when the agent *decides* it's durable and calls `remember` — it's a **judgment call, not an automatic recorder.** Nothing is saved just because it was discussed, and nothing is saved just because code was written. The save is its own deliberate act.
+The agent saves on its own — but only when it *recognizes* a moment as durable. It's a **judgment call, not a recorder.** It nails the sharp moments (a decision lands, a landmine appears, a rule gets set) and misses the soft ones: the discussion that never concluded, the call you made in a meeting, the preference you muttered in passing. Those slip by — you talked about it, nobody saved it, it's gone.
 
-That instinct fires reliably on **outcomes**:
+So here's the one move that never misses. **Say "remember this."** No type, no tags, no syntax — the agent shapes the memory for you. You just flag it.
 
-- ✅ a **decision** gets made — and *why*, including the option you rejected
-- ✅ a **landmine** is found
-- ✅ a **rule, boundary, or preference** is stated
-- ✅ a **chunk of work** is finished or paused
+**Reach for it in these 5 moments — the ones the agent tends to miss:**
 
-But it has one blind spot: **open-ended exploration.** A topic you talked through that never hardened into a decision can slip past — it reads as "thinking out loud," so the trigger never fires. You discussed it; nobody saved it; it's gone.
+| | The moment | Say something like |
+|---|---|---|
+| 💭 | **Reasoning that never landed** — you thought it through but didn't decide | *"Remember why we're holding off on ANN."* |
+| 🤝 | **A call made off-screen** — settled in a meeting, Slack, or your head | *"Remember we picked Stripe over Paddle — fewer payout countries."* |
+| 🎚️ | **A preference dropped in passing** — said offhand, not as an order | *"Remember I hate mocks in tests — use real fixtures."* |
+| 🚧 | **A "don't" that's not in the code** — tribal knowledge no file reveals | *"Remember the staging DB is shared — never migrate against it."* |
+| ⏳ | **A deliberate not-yet** — choosing *not* to do something, and why | *"Remember we're skipping i18n until after launch — on purpose."* |
 
-The fix is one sentence — **just say "remember this":**
+> [!TIP]
+> **The one-line rule:** if it concluded sharply *in this session*, the agent probably already caught it. If it's **soft, decided elsewhere, or a non-action** — that's your cue to say *"remember this."*
 
-> *"Remember that ANN discussion."*
-> *"Don't lose the reasoning on why we deferred X."*
-> *"Save that for later."*
-
-Any of those is enough. You **don't** specify a type, anchors, or tags — the agent shapes the memory for you. This bypasses the agent's judgment entirely, so reach for it whenever something matters to you but didn't end in a clean *"we decided."* It's the safety net under the automatic capture.
-
-> ✨ **The feeling —** you stay in flow, and on the rare thing the agent wouldn't think to keep, three words pin it forever.
+> ✨ **The feeling —** you stay in flow, and the one thing the agent wouldn't think to keep, three words pin forever.
 
 ---
 
