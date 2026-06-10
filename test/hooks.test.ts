@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '../src/store.ts';
-import { formatAnchoredContext, formatSessionContext } from '../src/hooks.ts';
+import { formatAnchoredContext, formatSessionContext, formatStatusLine } from '../src/hooks.ts';
 import { installHooks } from '../src/install-hooks.ts';
 import type { Memory } from '../src/types.ts';
 
@@ -71,6 +71,21 @@ test('formatSessionContext returns null on empty and labels the catch-up', () =>
   assert.match(formatSessionContext([aMemory({ type: 'state', content: 'mid-refactor' })]) ?? '', /left off/);
 });
 
+test('formatSessionContext strips a leading status marker so the recap reads like prose', () => {
+  const out = formatSessionContext([aMemory({ content: 'VERIFIED (2026-06-10) the hook command works end to end' })]) ?? '';
+  assert.ok(!out.includes('VERIFIED'), 'the ALL-CAPS status marker is dropped');
+  assert.ok(!out.includes('(2026-06-10)'), 'the parenthetical date is dropped');
+  assert.match(out, /The hook command works/, 'remainder is kept and re-capitalized');
+});
+
+test('formatStatusLine returns null on empty and renders a compact, marker-free line', () => {
+  assert.equal(formatStatusLine([]), null);
+  const out = formatStatusLine([aMemory({ type: 'state', content: 'VERIFIED (2026-06-10) the statusline renders cleanly' })]) ?? '';
+  assert.match(out, /memoir/, 'labelled so it is recognizable in the status bar');
+  assert.ok(!out.includes('VERIFIED'), 'the loud status marker is stripped');
+  assert.match(out, /statusline renders cleanly/i, 'shows the gist of the in-flight work');
+});
+
 // --- installHooks ------------------------------------------------------------
 
 test('installHooks writes both hooks, preserves other keys, and is idempotent', (t) => {
@@ -80,17 +95,34 @@ test('installHooks writes both hooks, preserves other keys, and is idempotent', 
   writeFileSync(join(dir, '.claude', 'settings.json'), JSON.stringify({ model: 'opus' }));
 
   const first = installHooks(dir, HOOKS_DIR);
-  assert.deepEqual(first.added.sort(), ['PreToolUse', 'SessionStart']);
+  assert.deepEqual(first.added.sort(), ['PreToolUse', 'SessionStart', 'statusLine']);
 
   const settings = JSON.parse(readFileSync(first.file, 'utf8'));
   assert.equal(settings.model, 'opus', 'existing keys are preserved');
   assert.equal(settings.hooks.PreToolUse[0].matcher, 'Read|Edit|Write');
   assert.match(settings.hooks.PreToolUse[0].hooks[0].command, /pre-tool-recall\.ts/);
   assert.match(settings.hooks.SessionStart[0].hooks[0].command, /session-start\.ts/);
+  assert.equal(settings.statusLine.type, 'command');
+  assert.match(settings.statusLine.command, /statusline\.ts/);
 
   const second = installHooks(dir, HOOKS_DIR);
   assert.deepEqual(second.added, [], 'nothing added the second time');
-  assert.deepEqual(second.skipped.sort(), ['PreToolUse', 'SessionStart']);
+  assert.deepEqual(second.skipped.sort(), ['PreToolUse', 'SessionStart', 'statusLine']);
+});
+
+test('installHooks never clobbers an existing statusLine', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-statusline-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, '.claude'));
+  writeFileSync(
+    join(dir, '.claude', 'settings.json'),
+    JSON.stringify({ statusLine: { type: 'command', command: 'my-own.sh' } }),
+  );
+
+  const res = installHooks(dir, HOOKS_DIR);
+  const settings = JSON.parse(readFileSync(res.file, 'utf8'));
+  assert.equal(settings.statusLine.command, 'my-own.sh', "the user's statusLine is left untouched");
+  assert.ok(res.skipped.includes('statusLine'), 'an existing statusLine is reported as skipped');
 });
 
 test('installHooks emits a $CLAUDE_PROJECT_DIR command when hooks live inside the project', (t) => {
@@ -176,4 +208,23 @@ test('session-start injects a where-we-left-off summary', (t) => {
   const out = JSON.parse(stdout);
   assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(out.hookSpecificOutput.additionalContext, /mid-refactor/);
+});
+
+// --- statusline command, end to end ------------------------------------------
+
+test('statusline prints the in-flight state for the project (resolved via project_dir)', (t) => {
+  const dir = project(t, aMemory({ type: 'state', content: 'mid-refactor: extracting the parser' }));
+  const { stdout, status } = runHook('statusline.ts', { workspace: { project_dir: dir } });
+  assert.equal(status, 0);
+  assert.match(stdout, /memoir/);
+  assert.match(stdout, /mid-refactor/);
+});
+
+test('statusline stays silent outside any .memoir store', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'memoir-statusbare-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const { stdout, status } = runHook('statusline.ts', { workspace: { project_dir: dir } });
+  assert.equal(status, 0);
+  assert.equal(stdout, '', 'no store → empty status line');
+  assert.equal(existsSync(join(dir, '.memoir')), false, 'the status line must not create a store');
 });

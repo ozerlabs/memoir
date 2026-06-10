@@ -35,8 +35,33 @@ function gist(content: string, max = 200): string {
   return `${cut.slice(0, lastSpace > 0 ? lastSpace : max).trimEnd()}…`;
 }
 
+// Strip a leading status marker so the recap reads like prose, not a changelog.
+// Memories often open with "VERIFIED (2026-06-10) …", "RESOLVED (…) …" or
+// "BUILD STATUS: …" — these orient the writer but read as noise at a glance. Drop a
+// run of ALL-CAPS words + optional (parenthetical) + optional colon, then
+// re-capitalize the remainder. The full content is still one recall away.
+function stripStatusMarker(content: string): string {
+  const trimmed = content.trim();
+  const stripped = trimmed.replace(/^[A-Z][A-Z]+(?:\s+[A-Z]+)*\s*(?:\([^)]*\))?:?\s+/, '');
+  // Only re-capitalize when we actually removed a marker — leave untouched content
+  // (which may legitimately start lowercase) exactly as the author wrote it.
+  return stripped === trimmed ? trimmed : stripped.charAt(0).toUpperCase() + stripped.slice(1);
+}
+
 function recapLine(m: Memory): string {
-  return `• ${TYPE_LABEL[m.type] ?? m.type}: ${gist(m.content)}`;
+  return `• ${TYPE_LABEL[m.type] ?? m.type}: ${gist(stripStatusMarker(m.content))}`;
+}
+
+// A compact, single-line status for Claude Code's status bar — a persistent,
+// USER-VISIBLE footer (unlike formatSessionContext, which is a multi-line recap
+// fed to the model). Shows the gist of the current in-flight work so a glance at
+// the bottom of the screen answers "what was I doing here?". Returns null when
+// nothing is in flight, so the status bar stays empty. The "·" / "⟳" framing
+// matches the greeting the user signed off on.
+export function formatStatusLine(memories: Memory[]): string | null {
+  const top = memories[0];
+  if (!top) return null;
+  return `memoir · ⟳ ${gist(stripStatusMarker(top.content), 72)}`;
 }
 
 // Context injected before the agent reads/edits a file. Returns null when there

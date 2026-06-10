@@ -23,5 +23,10 @@
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "NODE_NO_WARNINGS=1 node \"$CLAUDE_PROJECT_DIR/hooks/statusline.ts\"",
+    "padding": 0
   }
 }

@@ -93,6 +93,21 @@ export function installHooks(
     added.push(spec.event);
   }
 
+  // Status line: a persistent, user-visible footer showing the current in-flight
+  // state — the only greeting surface a repo config can drive (SessionStart hook
+  // output reaches only the model). Set it only when the project has none; never
+  // clobber a statusLine the user already configured, ours or theirs.
+  if (settings.statusLine === undefined) {
+    settings.statusLine = {
+      type: 'command',
+      command: hookCommand(join(dir, 'statusline.ts'), cwd),
+      padding: 0,
+    };
+    added.push('statusLine');
+  } else {
+    skipped.push('statusLine');
+  }
+
   // Nothing new to write — leave the file untouched (don't rewrite formatting).
   if (!added.length) return { added, skipped, file };
 
