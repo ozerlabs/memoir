@@ -277,9 +277,11 @@ You just do normal work. The memory takes care of itself — with one exception 
 
 ### 🗣️ When to just say "remember this"
 
-The agent saves on its own — but only when it *recognizes* a moment as durable. It's a **judgment call, not a recorder.** It nails the sharp moments (a decision lands, a landmine appears, a rule gets set) and misses the soft ones: the discussion that never concluded, the call you made in a meeting, the preference you muttered in passing. Those slip by — you talked about it, nobody saved it, it's gone.
+memoir doesn't tape your session and transcribe it. Every memory is a **deliberate act**: as the agent works, it watches for facts worth keeping and saves them itself — picking the type, anchoring them to the right files, all without you asking. For most of a session that's exactly what you want, and you never lift a finger.
 
-So here's the one move that never misses. **Say "remember this."** No type, no tags, no syntax — the agent shapes the memory for you. You just flag it.
+But *"worth keeping"* is a **judgment, not a rule** — and judgment has edges. The agent reliably catches the **loud** moments, the ones that announce themselves: a decision gets made, a landmine turns up, a convention or constraint is stated out loud. What it can miss are the **quiet** ones — a discussion that trailed off without a conclusion, a call you'd already settled in a meeting before you opened the editor, a preference you mentioned in passing as if it were obvious. Nothing in those moments shouts *"save me,"* so they slip by — and once the session closes, they're gone for good.
+
+That's the entire reason **"remember this"** exists: it turns *your* judgment into the trigger. No type, no tags, no syntax — the agent shapes the memory for you. You just flag it, and the one thing it wouldn't have thought to keep gets kept anyway.
 
 **Reach for it in these 5 moments — the ones the agent tends to miss:**
 
